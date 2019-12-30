@@ -7,6 +7,21 @@ def _powerset(iterable):
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))
 
 
+class HyperEdge:
+    def __init__(self, label: str, variables: set):
+        self._label = label
+        self._variables = variable
+
+    def get_label(self):
+        return  self._label
+
+    def get_variables(self):
+        return self._variables
+
+    def __str__(self):
+        return self.get_label() + "(" + str(self._variables) + ")"
+
+
 class HyperGraph:
     """
     Class that represents a hypergraph.
@@ -46,7 +61,7 @@ class HyperGraph:
         for perm in itertools.combinations(self._variables, 2):
             edge = {perm[0], perm[1]}
             for hyper_edge in self._hyper_edges:
-                if edge.issubset(hyper_edge):
+                if edge.issubset(hyper_edge.get_variables()):
                     edges.add(frozenset(edge))
                     break
 
@@ -61,7 +76,7 @@ class HyperGraph:
         :return: (bool) True if a is v-adjacent to b, False otherwise
         """
         for hyper_edge in self._hyper_edges:
-            if {a, b}.issubset(hyper_edge.difference(v)):
+            if {a, b}.issubset(hyper_edge.get_variables().difference(v)):
                 return True
 
         return False
@@ -133,7 +148,7 @@ class HyperGraph:
         edges = set()
 
         for edge in self._hyper_edges:
-            if c.intersection(edge):
+            if c.intersection(edge.get_variables()):
                 edges.add(edge)
 
         return edges
@@ -151,13 +166,13 @@ class HyperGraph:
                 continue
 
             # Check if robbers area decreased
-            if not c_robbers.intersection(move):
+            if not c_robbers.intersection(move.get_variables()):
                 continue
 
             # Check if components can be decomposed
             valid = True
             for comp in self._gen_components(move, c_robbers):
-                if not self.decomposable(comp, move):
+                if not self.decomposable(comp, {move}):
                     valid = False
                     break
 
@@ -179,7 +194,7 @@ class HyperGraph:
                 continue
 
             # Check if robbers area decreased
-            if not c_robbers.intersection(move):
+            if not c_robbers.intersection(move.get_variables()):
                 continue
 
             # Check if components can be decomposed
@@ -187,7 +202,7 @@ class HyperGraph:
             components = self._gen_components(move, c_robbers)
             ret = []
             for comp in components:
-                comp = self.join_tree(comp, move)
+                comp = self.join_tree(comp, {move})
                 if not comp:
                     valid = False
                     break
@@ -195,11 +210,11 @@ class HyperGraph:
                 ret.append(comp)
 
             if valid:
-                return [list(move), ret]
+                return [str(move), ret]
 
         return False
 
-    def _gen_components(self, move, c_robbers: set):
+    def _gen_components(self, move: HyperEdge, c_robbers: set):
         """
         Function to generate all [move]-components.
         DISCLAIMER: Can be done way more efficiently.
@@ -210,21 +225,21 @@ class HyperGraph:
 
         for comp in _powerset(self._variables):
             s_comp = set(comp)
-            if self.v_component(move, s_comp) and s_comp.issubset(c_robbers) and len(s_comp) > 0:
+            if self.v_component(move.get_variables(), s_comp) and s_comp.issubset(c_robbers) and len(s_comp) > 0:
                 components.append(s_comp)
 
         return components
 
-    def _enclosed(self, c_robbers, marshals, move):
+    def _enclosed(self, c_robbers: set, marshals, move: HyperEdge):
         """
         Function to determine whether the robbers area is enclosed by
         the marshals during the move.
 
         :return: (boolean) True if enclosed, false otherwise
         """
-        flat_set = {item for sublist in marshals for item in sublist}
+        flat_set = {item for sublist in marshals for item in sublist.get_variables()}
         for edge in self.edges(c_robbers):
-            if not flat_set.intersection(edge).issubset(move):
+            if not flat_set.intersection(edge.get_variables()).issubset(move.get_variables()):
                 return False
 
         return True
