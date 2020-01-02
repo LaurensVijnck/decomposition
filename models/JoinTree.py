@@ -29,7 +29,7 @@ class TreeNode:
         :param variables: (set) set of variables
         :return: (TreeNode) node representing the set of variables.
         """
-        if self._label.is_atom() and self._label.get_variables() == variables:
+        if not self._label.is_atom() and self._label.get_variables() == variables:
             return self
 
         for child in self._children:
@@ -56,6 +56,9 @@ class GeneralizedTreeNode(TreeNode):
             return self.get_label().get_variables().intersection(self._parent.get_label().get_variables())
 
         return {}
+
+    def get_non_guards(self):
+        return set(self.get_children()).difference(self._guard)
 
     def set_parent(self, parent):
         self._parent = parent
@@ -113,7 +116,7 @@ class JoinTree:
 
         :return: (JoinTree) generalized variant of the join tree.
         """
-        transformed = JoinTree()
+        transformed = GeneralizedJoinTree()
         _to_generalized_join_tree(self._root, transformed, None)
         return transformed
 
