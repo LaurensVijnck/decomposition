@@ -1,4 +1,5 @@
 from models.HyperEdge import HyperEdge
+from models.Relation import MultisetRelation, RelationalCatalog
 
 
 class TreeNode:
@@ -24,7 +25,7 @@ class TreeNode:
     def contains(self, variables: set):
         """
         Function to fetch the non-atom node in the tree
-        that represents the given set of variables
+        that represents the given set of variables.
 
         :param variables: (set) set of variables
         :return: (TreeNode) node representing the set of variables.
@@ -47,6 +48,13 @@ class GeneralizedTreeNode(TreeNode):
         super().__init__(label, children)
         self._guard = guard
         self._parent = parent
+        self._relation = None
+
+    def set_relation(self, relation: MultisetRelation):
+        self._relation = relation
+
+    def get_relation(self):
+        return self._relation
 
     def get_guard(self):
         return self._guard
@@ -63,8 +71,17 @@ class GeneralizedTreeNode(TreeNode):
     def set_parent(self, parent):
         self._parent = parent
 
+    def initialize(self, catalog: RelationalCatalog):
+        if len(self._children) > 0:
+            for child in self._children:
+                child.initialize(catalog)
+
+            self._relation = self._guard.get_relation().project(self._label.get_variables())
+        else:
+            self._relation = catalog.get(self._label.get_label())
+
     def serialize(self):
-        return [self.get_pvar(), [child.serialize() for child in self._children]]
+        return [str(self.get_label()), [child.serialize() for child in self._children]]
 
 
 class JoinTree:
@@ -124,6 +141,10 @@ class JoinTree:
 class GeneralizedJoinTree(JoinTree):
     def __init__(self, root=None):
         super().__init__(root)
+
+    def initialize(self, catalog: RelationalCatalog):
+        if self._root:
+            self._root.initialize(catalog)
 
 
 def _to_generalized_join_tree(node: TreeNode, join_tree: JoinTree, parent):

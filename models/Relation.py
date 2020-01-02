@@ -19,7 +19,7 @@ class RelTuple:
         return RelTuple(frozendict(proj))
 
     def __str__(self):
-        return str(self._attr_map)
+        return str(list(self._attr_map.items()))
 
     def __eq__(self, other):
         if not isinstance(other, RelTuple):
@@ -42,6 +42,14 @@ class MultisetRelation:
         self._cnt = Counter()
         self.add(tuples)
 
+    def project(self, variables: set):
+        rel = MultisetRelation("", variables)
+        for tup, mult in self._cnt.items():
+            rel._cnt[tup.project(variables)] = mult
+
+        return rel
+
+
     def get_variables(self):
         return self._variables
 
@@ -51,6 +59,10 @@ class MultisetRelation:
     def add(self, tuples: list):
         self._cnt.update(tuples)
 
+    def print(self):
+        for tup, mult in self._cnt.items():
+            print(str(tup), mult)
+
     @staticmethod
     def from_file(name, file):
         tuples = []
@@ -58,16 +70,16 @@ class MultisetRelation:
         header = None
         for line in f:
             if header is None:
-                header = line.split(" ")
+                header = line.replace("\n", "").split(" ")
 
             else:
-                val = line.split(" ")
+                val = line.replace("\n", "").split(" ")
                 tuples.append(RelTuple(dict(zip(header, val))))
 
         return MultisetRelation(name, set(header), tuples)
 
 
-class Catalog:
+class RelationalCatalog:
     def __init__(self):
         self._catalog = {}
 
