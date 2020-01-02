@@ -1,25 +1,13 @@
 import itertools
 from collections import defaultdict
 
+from models.HyperEdge import HyperEdge
+from models.JoinTree import TreeNode, JoinTree
+
 
 def _powerset(iterable):
     s = list(iterable)
     return itertools.chain.from_iterable(itertools.combinations(s, r) for r in range(len(s) + 1))
-
-
-class HyperEdge:
-    def __init__(self, label: str, variables: set):
-        self._label = label
-        self._variables = variable
-
-    def get_label(self):
-        return  self._label
-
-    def get_variables(self):
-        return self._variables
-
-    def __str__(self):
-        return self.get_label() + "(" + str(self._variables) + ")"
 
 
 class HyperGraph:
@@ -181,12 +169,19 @@ class HyperGraph:
 
         return False
 
-    def join_tree(self, c_robbers: set, marshals: set):
+    def join_tree(self):
         """
-        Function to determine whether the hyper-graph
-        is 1-decomposable.
+        Function to retrieve the join tree of the hypergraph.
 
-        :return: (boolean) True if 1-decomposable, False otherwise
+        :return: (JoinTree) representing the join tree
+        """
+        return JoinTree(self._join_tree_rec(self._variables, set()))
+
+    def _join_tree_rec(self, c_robbers: set, marshals: set):
+        """
+        Function to compute the join-tree of the hypergraph.
+
+        :return: (TreeNode) representing the root of the join tree
         """
         for move in self._hyper_edges:
             # Check if robbers can't escape
@@ -200,17 +195,17 @@ class HyperGraph:
             # Check if components can be decomposed
             valid = True
             components = self._gen_components(move, c_robbers)
-            ret = []
+            children = []
             for comp in components:
-                comp = self.join_tree(comp, {move})
+                comp = self._join_tree_rec(comp, {move})
                 if not comp:
                     valid = False
                     break
 
-                ret.append(comp)
+                children.append(comp)
 
             if valid:
-                return [str(move), ret]
+                return TreeNode(move, children)
 
         return False
 
