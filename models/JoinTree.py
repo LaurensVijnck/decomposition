@@ -42,11 +42,33 @@ class TreeNode:
         return [str(self._label), [child.serialize() for child in self._children]]
 
 
+class GeneralizedTreeNode(TreeNode):
+    def __init__(self, label: HyperEdge, children=None, guard=None, parent=None):
+        super().__init__(label, children)
+        self._guard = guard
+        self._parent = parent
+
+    def get_guard(self):
+        return self._guard
+
+    def get_pvar(self):
+        if self._parent is not None:
+            return self.get_label().get_variables().intersection(self._parent.get_label().get_variables())
+
+        return {}
+
+    def set_parent(self, parent):
+        self._parent = parent
+
+    def serialize(self):
+        return [self.get_pvar(), [child.serialize() for child in self._children]]
+
+
 class JoinTree:
     """
     Class that represents a join tree.
     """
-    def __init__(self, root = None):
+    def __init__(self, root=None):
         self._root = root
 
     def is_empty(self):
@@ -96,25 +118,32 @@ class JoinTree:
         return transformed
 
 
+class GeneralizedJoinTree(JoinTree):
+    def __init__(self, root=None):
+        super().__init__(root)
+
+
 def _to_generalized_join_tree(node: TreeNode, join_tree: JoinTree, parent):
     """
     Algorithm to parse an arbitrary join tree to a generalized join tree.
     """
     if len(node.get_children()) > 0:
-        repr = join_tree.contains(node.get_label().get_variables())
+        child = GeneralizedTreeNode(node.get_label())
+        hyper_edge = join_tree.contains(node.get_label().get_variables())
 
-        if repr is None:
-            repr = TreeNode(node.get_label().get_edge_repr())
+        if hyper_edge is None:
+            hyper_edge = GeneralizedTreeNode(node.get_label().get_edge_repr(), guard=child, parent=parent)
 
             if parent is None:
-                join_tree.set_root(repr)
+                join_tree.set_root(hyper_edge)
             else:
-                parent.add_child(repr)
+                parent.add_child(hyper_edge)
 
-        repr.add_child(TreeNode(node.get_label()))
+        child.set_parent(hyper_edge)
+        hyper_edge.add_child(child)
 
         for child in node.get_children():
-            _to_generalized_join_tree(child, join_tree, repr)
+            _to_generalized_join_tree(child, join_tree, hyper_edge)
 
     else:
-        parent.add_child(TreeNode(node.get_label()))
+        parent.add_child(GeneralizedTreeNode(node.get_label(), parent=parent))
