@@ -107,7 +107,7 @@ class GeneralizedTreeNode(TreeNode):
         generalized join tree.
 
         :param rel_tup: (RelTuple)
-        :return:
+        :return: (MultisetRelation) result of the join as computed by the join tree.
         """
         pvar = self.get_pvar()
         if len(self.get_children()) > 0:
