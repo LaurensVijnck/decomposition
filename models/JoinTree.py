@@ -1,5 +1,5 @@
 from models.HyperEdge import HyperEdge
-from models.Relation import MultisetRelation, RelationalCatalog
+from models.Relation import MultisetRelation, RelationalCatalog, RelTuple
 
 
 class TreeNode:
@@ -49,6 +49,7 @@ class GeneralizedTreeNode(TreeNode):
         self._guard = guard
         self._parent = parent
         self._relation = None
+        self._pvar_index = {}
 
     def set_relation(self, relation: MultisetRelation):
         self._relation = relation
@@ -63,7 +64,7 @@ class GeneralizedTreeNode(TreeNode):
         if self._parent is not None:
             return self.get_label().get_variables().intersection(self._parent.get_label().get_variables())
 
-        return {}
+        return set()
 
     def get_non_guards(self):
         return set(self.get_children()).difference(self._guard)
@@ -72,6 +73,13 @@ class GeneralizedTreeNode(TreeNode):
         self._parent = parent
 
     def initialize(self, catalog: RelationalCatalog):
+        """
+        Function to assign MultiRelations to the generalized join
+        join tree, leaf nodes are assigned atoms whereas interior
+        nodes are assigned projections of these atomic tables.
+
+        :param catalog: (RelationalCatalog) wherein base tables are stored.
+        """
         if len(self._children) > 0:
             for child in self._children:
                 child.initialize(catalog)
@@ -80,8 +88,44 @@ class GeneralizedTreeNode(TreeNode):
         else:
             self._relation = catalog.get(self._label.get_label())
 
-    def serialize(self):
-        return [str(self.get_label()), [child.serialize() for child in self._children]]
+    def semi_join_reduction(self):
+        """
+        Function to perform a bottom up semi-join reduction as defined in
+        the first stage of the Yannakakis algorithm.
+        """
+        for child in self._children:
+            child.semi_join_reduction()
+
+        if self._parent is not None:
+            self._parent._relation = self._parent._relation.semi_join(self._relation)
+
+        self._relation.create_index(self.get_pvar())
+
+    def enumerate(self, rel_tup: RelTuple):
+        """
+        Recursive function to iterate the final join results from the
+        generalized join tree.
+
+        :param rel_tup: (RelTuple)
+        :return:
+        """
+        pvar = self.get_pvar()
+        if len(self.get_children()) > 0:
+            result = MultisetRelation("", set())
+            for tup, mult in self._relation.retrieve(rel_tup.project(pvar)).generator():
+                temp = None
+                for child in self._children:
+                    if temp is None:
+                        temp = child.enumerate(tup)
+                    else:
+                        temp = temp.cart_prod(child.enumerate(tup))
+
+                # Merge results for each lookup
+                result = result.merge(temp)
+
+            return result
+
+        return self._relation.retrieve(rel_tup.project(pvar))
 
 
 class JoinTree:
@@ -145,6 +189,14 @@ class GeneralizedJoinTree(JoinTree):
     def initialize(self, catalog: RelationalCatalog):
         if self._root:
             self._root.initialize(catalog)
+
+    def semi_join_reduction(self):
+        if self._root:
+            self._root.semi_join_reduction()
+
+    def enumerate(self):
+        if self._root:
+            return self._root.enumerate(RelTuple.empty())
 
 
 def _to_generalized_join_tree(node: TreeNode, join_tree: JoinTree, parent):

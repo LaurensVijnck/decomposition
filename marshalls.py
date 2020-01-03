@@ -1,6 +1,6 @@
 from models.HyperEdge import HyperEdge
 from models.HyperGraph import HyperGraph
-from models.Relation import MultisetRelation, RelationalCatalog
+from models.Relation import RelTuple, MultisetRelation, RelationalCatalog
 
 
 def main():
@@ -14,16 +14,17 @@ def main():
     join_tree = graph.join_tree()
     gjt = join_tree.generalize()
 
+    print(gjt.serialize())
+
+
     catalog = RelationalCatalog()
     catalog.add(MultisetRelation.from_file("R", "data/relations/R.txt"))
     catalog.add(MultisetRelation.from_file("S", "data/relations/S.txt"))
     catalog.add(MultisetRelation.from_file("T", "data/relations/T.txt"))
 
-    print(catalog.get("R").project({'X'}).print())
-
     gjt.initialize(catalog)
-
-    print(gjt.serialize())
+    gjt.semi_join_reduction()
+    gjt.enumerate().print()
 
 
 
