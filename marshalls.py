@@ -10,7 +10,6 @@ def main():
     catalog.add(MultisetRelation.from_file("T", "data/relations/T.txt"))
 
     variables = {'X', 'Y', 'Z', 'W', 'V', 'U'}
-    #variables = {'X', 'Y', 'Z', 'U'}
     edge_r = HyperEdge('R', {'X', 'Y', 'Z'})
     edge_s = HyperEdge('S', {'X', 'Y', 'U'})
     edge_t = HyperEdge('T', {'Y', 'V', 'W'})

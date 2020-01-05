@@ -132,7 +132,7 @@ class GeneralizedTreeNode(TreeNode):
                         temp = temp.cart_prod(child.enumerate(tup))
 
                 # Merge results for each lookup
-                result = result.merge(temp)
+                result.merge(temp)
 
             return result
 
@@ -145,30 +145,41 @@ class GeneralizedTreeNode(TreeNode):
 
         if self.get_label().is_atom():
             self._delta_lambda = update.get(self.get_label().get_label())
-
+            self._delta_psi = self._delta_lambda.project(pvar)
         else:
-            self._delta_lambda = MultisetRelation("", self._label.get_variables())
-            self._delta_psi = MultisetRelation("", pvar)
-            self._delta_gamma = MultisetRelation("", set())
-            temp = self._guard._delta_psi
+            self._compute_deltas()
 
-            for ng_child in self.get_non_guards():
-                for tup, mult in ng_child._delta_psi.generator():
-                    ng_child_pvar = ng_child.get_pvar()
-                    temp = temp.merge(self._gamma.retrieve(ng_child_pvar, tup.project(ng_child_pvar)))
+    def _compute_deltas(self):
+        """
+        Helper function to compute the deltas to apply to the materialized GRMS. Based
+        on the description of the Yannakakis algorithm.
 
-            for tup, mult in temp.generator():
-                self._delta_gamma.set_multiplicity(tup, self._guard._psi.get_multiplicity(tup) + self._guard._delta_psi.get_multiplicity(tup) - self._gamma.get_multiplicity(tup))
+        :return:
+        """
+        pvar = self.get_pvar()
+        self._delta_lambda = MultisetRelation("", self._label.get_variables())
+        self._delta_psi = MultisetRelation("", pvar)
+        self._delta_gamma = MultisetRelation("", set())
+        temp = self._guard._delta_psi.copy()
 
-                mult = 1
-                for child in self._children:
-                    child_pvar = child.get_pvar()
-                    mult *= self._guard._psi.get_multiplicity(tup.project(child_pvar)) + self._guard._delta_psi.get_multiplicity(tup.project(child_pvar))
+        for ng_child in self.get_non_guards():
+            for tup, mult in ng_child._delta_psi.generator():
+                ng_child_pvar = ng_child.get_pvar()
+                temp.merge(self._gamma.retrieve(ng_child_pvar, tup.project(ng_child_pvar)))
 
-                self._delta_lambda.set_multiplicity(tup, mult - self._lambda.get_multiplicity(tup))
-                self._delta_psi.set_multiplicity(tup.project(pvar), self._delta_psi.get_multiplicity(tup.project(pvar)) + self._delta_lambda.get_multiplicity(tup))
+        for tup, mult in temp.generator():
+            self._delta_gamma.set_multiplicity(tup, self._guard._psi.get_multiplicity(
+                tup) + self._guard._delta_psi.get_multiplicity(tup) - self._gamma.get_multiplicity(tup))
 
-        self._delta_psi = self._delta_lambda.project(pvar)
+            mult = 1
+            for child in self._children:
+                child_pvar = child.get_pvar()
+                mult *= self._guard._psi.get_multiplicity(
+                    tup.project(child_pvar)) + self._guard._delta_psi.get_multiplicity(tup.project(child_pvar))
+
+            self._delta_lambda.set_multiplicity(tup, mult - self._lambda.get_multiplicity(tup))
+            self._delta_psi.set_multiplicity(tup.project(pvar), self._delta_psi.get_multiplicity(
+                tup.project(pvar)) + self._delta_lambda.get_multiplicity(tup))
 
     def apply_delta(self):
         self._lambda.add(self._delta_lambda)

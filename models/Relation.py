@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 from frozendict import frozendict
 
 
@@ -62,6 +62,8 @@ class RelTuple:
 class MultisetRelation:
     """
     Class that represents a multiset of relational tuples.
+
+    TODO: Indexing mechanism is far from ideal.
     """
     def __init__(self, name, variables: set, tuples=None):
         if tuples is None:
@@ -94,7 +96,6 @@ class MultisetRelation:
                 tuples[tup.project(variables)].add(tup)
 
     def copy(self):
-        # TODO: Do we need to copy indices?
         rel = MultisetRelation(self._name, self._variables)
         for tup, mult in self._cnt.items():
             rel._cnt[tup] = mult
@@ -130,21 +131,13 @@ class MultisetRelation:
 
     def merge(self, right):
         """
-        Function to obtain new GMR by merging the current one with the given relation.
-
-        TODO: This should not neccesarily yield a new GMR, could do a inplace update instead.
+        Function update current GRM by merging with the given relation.
 
         :param right: (MultisetRelation) to merge with.
         :return: (MultisetRelation) obtained by merging
         """
-        rel = MultisetRelation("", self._variables)
-        for tup, mult in self._cnt.items():
-            rel._cnt[tup] = mult
-
         for tup, mult in right.generator():
-            rel._cnt[tup] = mult
-
-        return rel
+            self._cnt[tup] += mult
 
     def cart_prod(self, right):
         """
