@@ -48,14 +48,14 @@ class GeneralizedTreeNode(TreeNode):
         super().__init__(label, children)
         self._guard = guard
         self._parent = parent
-        self._relation = None
-        self._pvar_index = {}
 
-    def set_relation(self, relation: MultisetRelation):
-        self._relation = relation
+        self._lambda = None         # Live tuples
+        self._psi = None            # Live tuples projected on pvar
+        self._gamma = None          # Natural join of non-guards
+        self._gamma_indices = []
 
     def get_relation(self):
-        return self._relation
+        return self._lambda
 
     def get_guard(self):
         return self._guard
@@ -84,9 +84,13 @@ class GeneralizedTreeNode(TreeNode):
             for child in self._children:
                 child.initialize(catalog)
 
-            self._relation = self._guard.get_relation().project(self._label.get_variables())
+            self._lambda = self._guard.get_relation().project(self._label.get_variables())
+            self._gamma = self._guard._psi.copy()
+
         else:
-            self._relation = catalog.get(self._label.get_label())
+            self._lambda = catalog.get(self._label.get_label())
+
+        self._psi = self._lambda.project(self.get_pvar())
 
     def semi_join_reduction(self):
         """
@@ -97,9 +101,9 @@ class GeneralizedTreeNode(TreeNode):
             child.semi_join_reduction()
 
         if self._parent is not None:
-            self._parent._relation = self._parent._relation.semi_join(self._relation)
+            self._parent._lambda = self._parent._lambda.semi_join(self._lambda)
 
-        self._relation.create_index(self.get_pvar())
+        self._lambda.create_index(self.get_pvar())
 
     def enumerate(self, rel_tup: RelTuple):
         """
@@ -112,7 +116,7 @@ class GeneralizedTreeNode(TreeNode):
         pvar = self.get_pvar()
         if len(self.get_children()) > 0:
             result = MultisetRelation("", set())
-            for tup, mult in self._relation.retrieve(rel_tup.project(pvar)).generator():
+            for tup, mult in self._lambda.retrieve(rel_tup.project(pvar)).generator():
                 temp = None
                 for child in self._children:
                     if temp is None:
@@ -125,7 +129,17 @@ class GeneralizedTreeNode(TreeNode):
 
             return result
 
-        return self._relation.retrieve(rel_tup.project(pvar))
+        return self._lambda.retrieve(rel_tup.project(pvar))
+
+    def update(self, update: RelationalCatalog):
+        pvar = self.get_pvar()
+        for child in self._children:
+            child.update(update)
+
+        if self.get_label().is_atom():
+            delta_l = update.get(self.get_label().get_label())
+
+        delta_p = delta_l.project(var)
 
 
 class JoinTree:
@@ -197,6 +211,10 @@ class GeneralizedJoinTree(JoinTree):
     def enumerate(self):
         if self._root:
             return self._root.enumerate(RelTuple.empty())
+
+    def update(self, update: RelationalCatalog):
+        if self._root:
+            return self._root.update(update)
 
 
 def _to_generalized_join_tree(node: TreeNode, join_tree: JoinTree, parent):

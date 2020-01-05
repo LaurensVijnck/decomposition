@@ -82,6 +82,13 @@ class MultisetRelation:
     def add(self, tuples: list):
         self._cnt.update(tuples)
 
+    def copy(self):
+        rel = MultisetRelation(self._name, self._variables)
+        for tup, mult in self._cnt.items():
+            rel._cnt[tup] = mult
+
+        return rel
+
     def print(self):
         for tup, mult in self._cnt.items():
             print(str(tup), mult)
