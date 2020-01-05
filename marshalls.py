@@ -22,6 +22,16 @@ def main():
     gjt.initialize(catalog)
     gjt.semi_join_reduction()
     gjt.enumerate().print()
+    print()
+
+    update = RelationalCatalog()
+    update.add(MultisetRelation.from_file("R", "data/relations/delta_R.txt"))
+    update.add(MultisetRelation.from_file("S", "data/relations/delta_S.txt"))
+    update.add(MultisetRelation.from_file("T", "data/relations/delta_T.txt"))
+
+    gjt.update(update)
+    gjt.enumerate().print()
+
 
 if __name__ == "__main__":
     main()

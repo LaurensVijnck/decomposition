@@ -17,7 +17,7 @@ class RelTuple:
     def get_attributes(self):
         return self._attr_map
 
-    def project(self, variables: set):
+    def project(self, variables):
         """
         Function to project the tuple on the given set of variables.
 
@@ -69,9 +69,9 @@ class MultisetRelation:
 
         self._name = name
         self._variables = variables
-        self._cnt = Counter()
-        self._index = None
-        self.add(tuples)
+        self._cnt = defaultdict(int)
+        self._indices = {}
+        self.add_tuples(tuples)
 
     def get_variables(self):
         return self._variables
@@ -79,10 +79,22 @@ class MultisetRelation:
     def get_name(self):
         return self._name
 
-    def add(self, tuples: list):
-        self._cnt.update(tuples)
+    def add_tuples(self, tuples: list):
+        for tup in tuples:
+            self._cnt[tup] += 1
+
+            for variables, tuples in self._indices.items():
+                tuples[tup.project(variables)].add(tup)
+
+    def add(self, delta):
+        for tup, mult in delta.generator():
+            self._cnt[tup] += mult
+
+            for variables, tuples in self._indices.items():
+                tuples[tup.project(variables)].add(tup)
 
     def copy(self):
+        # TODO: Do we need to copy indices?
         rel = MultisetRelation(self._name, self._variables)
         for tup, mult in self._cnt.items():
             rel._cnt[tup] = mult
@@ -120,6 +132,8 @@ class MultisetRelation:
         """
         Function to obtain new GMR by merging the current one with the given relation.
 
+        TODO: This should not neccesarily yield a new GMR, could do a inplace update instead.
+
         :param right: (MultisetRelation) to merge with.
         :return: (MultisetRelation) obtained by merging
         """
@@ -134,7 +148,7 @@ class MultisetRelation:
 
     def cart_prod(self, right):
         """
-        Function to compute carthesian product with current GMR with the given GMR.
+        Function to compute Carthesian product with current GMR with the given GMR.
 
         :param right: (MultisetRelation) to join with
         :return: (MultisetRelation) obtained by joining
@@ -173,27 +187,33 @@ class MultisetRelation:
         """
         return self._cnt[rel_tuple]
 
+    def set_multiplicity(self, rel_tuple: RelTuple, multiplicity: int):
+        self._cnt[rel_tuple] = multiplicity
+
     def create_index(self, variables: set):
         """
         Function to create an index of the MultisetRelation on the given set of variables.
 
         :param variables: (set) variables to create the index on
         """
-        self._index = defaultdict(list)
+        index = defaultdict(set)
         for tup, mult in self._cnt.items():
-            self._index[tup.project(variables)].append([tup, mult])
+            index[tup.project(variables)].add(tup)
 
-    def retrieve(self, rel_tuple: RelTuple):
+        self._indices[variables] = index
+
+    def retrieve(self, index_vars: set, rel_tuple: RelTuple):
         """
         Function to retrieve tuples that match the given rel_tuple, making
         use of the index.
 
         :param rel_tuple: (RelTuple) to match tuples against
+        :param index_vars: (Set) used to pick the correct index
         :return: (MultisetRelation) of matching tuples
         """
         rel = MultisetRelation("", self._variables)
-        for tup, mult in self._index[rel_tuple]:
-            rel._cnt[tup] = mult
+        for tup in self._indices[index_vars][rel_tuple]:
+            rel._cnt[tup] = self._cnt[tup]
 
         return rel
 

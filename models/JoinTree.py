@@ -54,6 +54,10 @@ class GeneralizedTreeNode(TreeNode):
         self._gamma = None          # Natural join of non-guards
         self._gamma_indices = []
 
+        self._delta_lambda = None
+        self._delta_psi = None
+        self._delta_gamma = None
+
     def get_relation(self):
         return self._lambda
 
@@ -62,12 +66,12 @@ class GeneralizedTreeNode(TreeNode):
 
     def get_pvar(self):
         if self._parent is not None:
-            return self.get_label().get_variables().intersection(self._parent.get_label().get_variables())
+            return frozenset(self.get_label().get_variables().intersection(self._parent.get_label().get_variables()))
 
-        return set()
+        return frozenset(set())
 
     def get_non_guards(self):
-        return set(self.get_children()).difference(self._guard)
+        return set(self.get_children()).difference({self._guard})
 
     def set_parent(self, parent):
         self._parent = parent
@@ -87,6 +91,9 @@ class GeneralizedTreeNode(TreeNode):
             self._lambda = self._guard.get_relation().project(self._label.get_variables())
             self._gamma = self._guard._psi.copy()
 
+            # Create non-guard indices
+            for ng_child in self.get_non_guards():
+                self._gamma.create_index(ng_child.get_pvar())
         else:
             self._lambda = catalog.get(self._label.get_label())
 
@@ -116,7 +123,7 @@ class GeneralizedTreeNode(TreeNode):
         pvar = self.get_pvar()
         if len(self.get_children()) > 0:
             result = MultisetRelation("", set())
-            for tup, mult in self._lambda.retrieve(rel_tup.project(pvar)).generator():
+            for tup, mult in self._lambda.retrieve(pvar, rel_tup.project(pvar)).generator():
                 temp = None
                 for child in self._children:
                     if temp is None:
@@ -129,7 +136,7 @@ class GeneralizedTreeNode(TreeNode):
 
             return result
 
-        return self._lambda.retrieve(rel_tup.project(pvar))
+        return self._lambda.retrieve(pvar, rel_tup.project(pvar))
 
     def update(self, update: RelationalCatalog):
         pvar = self.get_pvar()
@@ -137,9 +144,41 @@ class GeneralizedTreeNode(TreeNode):
             child.update(update)
 
         if self.get_label().is_atom():
-            delta_l = update.get(self.get_label().get_label())
+            self._delta_lambda = update.get(self.get_label().get_label())
 
-        delta_p = delta_l.project(var)
+        else:
+            self._delta_lambda = MultisetRelation("", self._label.get_variables())
+            self._delta_psi = MultisetRelation("", pvar)
+            self._delta_gamma = MultisetRelation("", set())
+            temp = self._guard._delta_psi
+
+            for ng_child in self.get_non_guards():
+                for tup, mult in ng_child._delta_psi.generator():
+                    ng_child_pvar = ng_child.get_pvar()
+                    temp = temp.merge(self._gamma.retrieve(ng_child_pvar, tup.project(ng_child_pvar)))
+
+            for tup, mult in temp.generator():
+                self._delta_gamma.set_multiplicity(tup, self._guard._psi.get_multiplicity(tup) + self._guard._delta_psi.get_multiplicity(tup) - self._gamma.get_multiplicity(tup))
+
+                mult = 1
+                for child in self._children:
+                    child_pvar = child.get_pvar()
+                    mult *= self._guard._psi.get_multiplicity(tup.project(child_pvar)) + self._guard._delta_psi.get_multiplicity(tup.project(child_pvar))
+
+                self._delta_lambda.set_multiplicity(tup, mult - self._lambda.get_multiplicity(tup))
+                self._delta_psi.set_multiplicity(tup.project(pvar), self._delta_psi.get_multiplicity(tup.project(pvar)) + self._delta_lambda.get_multiplicity(tup))
+
+        self._delta_psi = self._delta_lambda.project(pvar)
+
+    def apply_delta(self):
+        self._lambda.add(self._delta_lambda)
+        self._psi.add(self._delta_psi)
+
+        if not self.get_label().is_atom():
+            self._gamma.add(self._delta_gamma)
+
+        for child in self._children:
+            child.apply_delta()
 
 
 class JoinTree:
@@ -214,7 +253,8 @@ class GeneralizedJoinTree(JoinTree):
 
     def update(self, update: RelationalCatalog):
         if self._root:
-            return self._root.update(update)
+            self._root.update(update)
+            self._root.apply_delta()
 
 
 def _to_generalized_join_tree(node: TreeNode, join_tree: JoinTree, parent):
